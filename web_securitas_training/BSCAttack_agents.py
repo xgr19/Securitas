@@ -93,12 +93,14 @@ class agent(robot):
         super().__init__(self.space, rl_batch, lr)
     
     ### MODIFIED ###
-    # This function now implements the random choice between dummy and split operations.
+    # This function now implements the random choice and returns bandwidth info.
     def apply_patch(self, combo, clip_batch, packet_size_batch):
         combo = combo[0:clip_batch.shape[0],:].cpu().numpy()
         clip_batch_np = clip_batch.view(clip_batch.shape[0], -1).cpu().numpy()
         packet_size_batch_np = packet_size_batch.view(packet_size_batch.shape[0], -1).cpu().numpy()
         new_batch_tensor = np.zeros((clip_batch_np.shape[0], clip_batch_np.shape[1]))
+        batch_flow_size = np.sum(packet_size_batch_np)
+        batch_overhead = 0
         
         for dim_1 in range(clip_batch_np.shape[0]):
             dim_2 = 0
@@ -118,6 +120,7 @@ class agent(robot):
                 if dim_2 - operation in icmp_pool:
                     icmp_pool.remove(dim_2 - operation)
                     new_batch_tensor[dim_1][dim_2] = 1
+                    batch_overhead += icmp_pkt_size + 20 + 14
                     dim_2 += 1
                     operation += 1
                     continue
@@ -137,22 +140,24 @@ class agent(robot):
                     dim_2 += 1
                 else: # An obfuscation action is chosen
                     operation += 1
+                    patch_size = global_number_choice[now_choice]
                     
                     # --- NEW: Randomly choose between dummy and split ---
                     if random.random() < self.split_ratio:
                         # --- Perform SPLIT logic (from your original code) ---
-                        split_size = global_number_choice[now_choice]
-                        if packet_size_batch_np[dim_1][dim_2 - operation + 1] > split_size: # Split success
+                        if packet_size_batch_np[dim_1][dim_2 - operation + 1] > patch_size: # Split success
                             new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1]
                             dim_2 += 1
                             if dim_2 == clip_batch_np.shape[1]: break
                             new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
+                            batch_overhead += 20 + 14
                             dim_2 += 1
                         else: # Split fail, treat as dummy packet
                             new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1]
                             dim_2 += 1
                             if dim_2 == clip_batch_np.shape[1]: break
                             new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
+                            batch_overhead += patch_size + 20 + 14
                             dim_2 += 1
                     else:
                         # --- Perform DUMMY PACKET logic (from your original code) ---
@@ -160,6 +165,7 @@ class agent(robot):
                         dim_2 += 1
                         if dim_2 == clip_batch_np.shape[1]: break
                         new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
+                        batch_overhead += patch_size + 20 + 14
                         dim_2 += 1
 
                     # ICMP logic is preserved for both cases
@@ -177,7 +183,7 @@ class agent(robot):
         new_batch_tensor = torch.from_numpy(new_batch_tensor).long().cuda()
         new_batch_tensor = new_batch_tensor.view(new_batch_tensor.shape[0], 1, -1)
         
-        return new_batch_tensor
+        return new_batch_tensor, batch_flow_size, batch_overhead
     
     ### MODIFIED ###
     # This is the new reinforcement learn function using the composite loss.
@@ -200,7 +206,7 @@ class agent(robot):
             for _ in range(steps):
                 combo, log_p_combo = self.select_combo(mode='train')
                 
-                new_clip_batch = self.apply_patch(combo, clip_batch, packet_size_batch)
+                new_clip_batch, flow_size, overhead = self.apply_patch(combo, clip_batch, packet_size_batch)
                 
                 # --- NEW COMPOSITE LOSS CALCULATION ---
                 # 1. Accuracy Loss
@@ -209,8 +215,9 @@ class agent(robot):
                 p_correct = torch.gather(output_softmax, dim=1, index=target_batch)
                 loss_accuracy = p_correct.mean()
 
-                # 2. Bandwidth Loss (token implementation, as length is fixed)
-                loss_bandwidth = torch.tensor(1.0, device='cuda').float()
+                # 2. Bandwidth Loss
+                loss_bandwidth = (flow_size + overhead) / (flow_size + eps)
+                loss_bandwidth = torch.tensor(loss_bandwidth, device=clip_batch.device).float()
 
                 # 3. Transferability/Similarity Loss
                 l2_dist = torch.norm(new_clip_batch.float() - clip_batch.float(), p=2, dim=-1)
@@ -242,7 +249,7 @@ class agent(robot):
             combo, _ = self.select_combo(mode='test')
             self.mind.reset()
             
-            b_x_adv = self.apply_patch(combo, b_x_torch, b_x_size_torch)
+            b_x_adv, _, _ = self.apply_patch(combo, b_x_torch, b_x_size_torch)
             
             logit = model(b_x_adv.float())[0]
             pred = torch.max(logit, 1)[1].view(b_y_torch.size()).cpu().numpy()
