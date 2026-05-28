@@ -1,10 +1,11 @@
 **Securitas: Defending against Traffic Analysis Attacks with Flexible In-Network Obfuscation NSDI‘26**
-
-Securitas protects encrypted traffic from traffic-analysis side channels through
+![Workflow](./figs/workflow.png)
+Welcome to Securitas! Securitas protects encrypted traffic from traffic-analysis side channels through
 learning-guided packet fragmentation and fake-packet insertion. This release
 focuses on the Web/WF artifact path: DF attack-model training, Securitas policy
 training, generated P4 rule entries, and a Tofino-style P4 test program.
-![Workflow](./figs/workflow.png)
+
+
 
 
 ## Code Architecture
