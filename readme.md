@@ -4,8 +4,8 @@ Securitas protects encrypted traffic from traffic-analysis side channels through
 learning-guided packet fragmentation and fake-packet insertion. This release
 focuses on the Web/WF artifact path: DF attack-model training, Securitas policy
 training, generated P4 rule entries, and a Tofino-style P4 test program.
+![Workflow](./figs/workflow.png)
 
-Repository paths in the commands below are relative to this repository root.
 
 ## Code Architecture
 
@@ -221,17 +221,6 @@ If you use Securitas in your research, please cite the NSDI '26 paper:
   booktitle={23rd USENIX Symposium on Networked Systems Design and Implementation (NSDI 26)},
   pages={2043--2063},
   year={2026}
-}
-```
-
-If you use the CW100 Web/WF dataset, please also cite the dataset paper:
-
-```bibtex
-@article{rimmer2017automated,
-  title={Automated website fingerprinting through deep learning},
-  author={Rimmer, Vera and Preuveneers, Davy and Juarez, Marc and Van Goethem, Tom and Joosen, Wouter},
-  journal={arXiv preprint arXiv:1708.06376},
-  year={2017}
 }
 ```
 
