@@ -1,9 +1,7 @@
 data/*.pkl
 data/*.npz
 data/tor_*
-AWF/model_awf.pth
-DF/model_df.pth
-VarCNN/model_varCNN.pth
+!data/.gitkeep
 *.tar.gz
 **/__pycache__/
 
