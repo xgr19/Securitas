@@ -50,35 +50,7 @@ The ISCX VPN-nonVPN dataset can be downloaded from the CIC/UNB dataset page:
 https://www.unb.ca/cic/datasets/vpn.html
 ```
 
-Put the downloaded zip files under:
-
-```text
-web_attack_models/raw_downloads/
-```
-
 After extraction, organize the pcap files under:
-
-```text
-web_attack_models/raw_iscx/
-  email/
-  chat/
-  streaming_multimedia/
-  file_transfer/
-  voip/
-  p2p/
-```
-
-Each protocol directory should contain the corresponding `.pcap` files. The
-preprocessing command below reads from `web_attack_models/raw_iscx/`.
-
-The checked-in processed artifact is:
-
-```text
-web_attack_models/data/iscx_session.pkl
-web_securitas_training/data/iscx_session.pkl
-```
-
-To regenerate it from raw ISCX pcap files, use the organized directory above:
 
 ```text
 web_attack_models/raw_iscx/
