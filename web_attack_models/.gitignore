@@ -3,3 +3,5 @@ raw_downloads/
 raw_iscx/
 *.pyc
 __pycache__/
+data/*
+!data/.gitkeep
