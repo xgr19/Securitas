@@ -1,7 +1,5 @@
-data/*.pkl
-data/*.npz
-data/tor_*
-!data/.gitkeep
-*.tar.gz
-**/__pycache__/
-
+APP_net_training/
+raw_downloads/
+raw_iscx/
+*.pyc
+__pycache__/

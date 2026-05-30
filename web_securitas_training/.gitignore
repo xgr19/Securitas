@@ -1,4 +1,3 @@
-__pycache__/
+outputs/
 *.pyc
-*.pkl
-DF_800_*
+__pycache__/

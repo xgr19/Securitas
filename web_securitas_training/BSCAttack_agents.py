@@ -40,7 +40,6 @@ class robot():
 
         def increment_stage(self):
             self.stage += 1
-
         def reset(self):
             self.stage = 0
             self.hidden = None
@@ -79,7 +78,6 @@ class robot():
 
 class agent(robot):
     ### MODIFIED ###
-    # Added loss_weights and split_ratio for the new requirements
     def __init__(self, model, training_data, test_data, patch_length, loss_weights, split_ratio):
         self.model = model
         self.training_data = training_data
@@ -93,13 +91,14 @@ class agent(robot):
         super().__init__(self.space, rl_batch, lr)
     
     ### MODIFIED ###
-    # This function now implements the random choice and returns bandwidth info.
-    def apply_patch(self, combo, clip_batch, packet_size_batch):
+    # This function now implements the random choice and returns bandwidth info for the loss function
+    def apply_patch(self, combo, clip_batch, direction):
         combo = combo[0:clip_batch.shape[0],:].cpu().numpy()
-        clip_batch_np = clip_batch.view(clip_batch.shape[0], -1).cpu().numpy()
-        packet_size_batch_np = packet_size_batch.view(packet_size_batch.shape[0], -1).cpu().numpy()
-        new_batch_tensor = np.zeros((clip_batch_np.shape[0], clip_batch_np.shape[1]))
-        batch_flow_size = np.sum(packet_size_batch_np)
+        clip_batch_np = clip_batch.cpu().numpy()
+        direction_np = direction.cpu().numpy()
+        new_batch_tensor = np.zeros_like(clip_batch_np)
+        
+        batch_flow_size = np.sum(clip_batch_np)
         batch_overhead = 0
         
         for dim_1 in range(clip_batch_np.shape[0]):
@@ -108,72 +107,68 @@ class agent(robot):
             operation = 0
             icmp_pool = []
             point_neg = 0
-            while point_neg < clip_batch_np.shape[1] and clip_batch_np[dim_1][point_neg] == -1:
+            while point_neg < clip_batch_np.shape[1] and direction_np[dim_1][point_neg] == -1:
                 point_neg += 1
             
-            # A single loop to handle all patch_length actions
             while idx < self.patch_length:
                 if dim_2 == clip_batch_np.shape[1]: break
-                if clip_batch_np[dim_1][dim_2 - operation] == 0: break
+                if direction_np[dim_1][dim_2 - operation] == 0: break
                 
-                # Logic for ICMP packets is preserved
                 if dim_2 - operation in icmp_pool:
                     icmp_pool.remove(dim_2 - operation)
-                    new_batch_tensor[dim_1][dim_2] = 1
-                    batch_overhead += icmp_pkt_size + 20 + 14
+                    new_batch_tensor[dim_1][dim_2] = icmp_pkt_size
+                    batch_overhead += (icmp_pkt_size + 20 + 14)
                     dim_2 += 1
                     operation += 1
                     continue
-                if clip_batch_np[dim_1][dim_2 - operation] == 1:
+                if direction_np[dim_1][dim_2 - operation] == 1:
                     new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
                     dim_2 += 1
                     if point_neg < clip_batch_np.shape[1]:
                         point_neg += 1
-                        while point_neg < clip_batch_np.shape[1] and clip_batch_np[dim_1][point_neg] == -1: point_neg += 1
+                        while point_neg < clip_batch_np.shape[1] and direction_np[dim_1][point_neg] == -1: point_neg += 1
                     continue
-                
+
                 now_choice = combo[dim_1][idx]
                 idx += 1
                 
-                if now_choice == 0: # No operation
+                if now_choice == 0:
                     new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
                     dim_2 += 1
-                else: # An obfuscation action is chosen
+                else: 
                     operation += 1
-                    patch_size = global_number_choice[now_choice]
-                    
                     # --- NEW: Randomly choose between dummy and split ---
                     if random.random() < self.split_ratio:
-                        # --- Perform SPLIT logic (from your original code) ---
-                        if packet_size_batch_np[dim_1][dim_2 - operation + 1] > patch_size: # Split success
+                        # --- Perform SPLIT logic ---
+                        split = global_number_choice[now_choice]
+                        if clip_batch_np[dim_1][dim_2 - operation + 1] <= split: # split fail, dummy
                             new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1]
+                            dim_2 += 1; 
+                            if dim_2 == clip_batch_np.shape[1]: break
+                            new_batch_tensor[dim_1][dim_2] = split
+                            batch_overhead += (split + 20 + 14)
+                            dim_2 += 1
+                        else: # split success
+                            new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1] - split
                             dim_2 += 1
                             if dim_2 == clip_batch_np.shape[1]: break
-                            new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
-                            batch_overhead += 20 + 14
-                            dim_2 += 1
-                        else: # Split fail, treat as dummy packet
-                            new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1]
-                            dim_2 += 1
-                            if dim_2 == clip_batch_np.shape[1]: break
-                            new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
-                            batch_overhead += patch_size + 20 + 14
+                            new_batch_tensor[dim_1][dim_2] = split
+                            batch_overhead += (20 + 14)
                             dim_2 += 1
                     else:
-                        # --- Perform DUMMY PACKET logic (from your original code) ---
+                        # --- Perform DUMMY PACKET logic ---
+                        dummy_size = global_number_choice[now_choice]
                         new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation + 1]
                         dim_2 += 1
                         if dim_2 == clip_batch_np.shape[1]: break
-                        new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][dim_2 - operation]
-                        batch_overhead += patch_size + 20 + 14
+                        new_batch_tensor[dim_1][dim_2] = dummy_size
+                        batch_overhead += (dummy_size + 20 + 14)
                         dim_2 += 1
 
-                    # ICMP logic is preserved for both cases
                     if dim_2 - operation > point_neg: exit(0)
                     icmp_pos = random.randint(dim_2 - operation, point_neg)
                     if random.random() < icmp_prob: icmp_pool.append(icmp_pos)
-
-            # Preserve the logic for filling the rest of the trace
+            
             start = dim_2 - operation
             while dim_2 < clip_batch_np.shape[1]:
                 new_batch_tensor[dim_1][dim_2] = clip_batch_np[dim_1][start]
@@ -181,11 +176,9 @@ class agent(robot):
                 start += 1
         
         new_batch_tensor = torch.from_numpy(new_batch_tensor).long().cuda()
-        new_batch_tensor = new_batch_tensor.view(new_batch_tensor.shape[0], 1, -1)
-        
         return new_batch_tensor, batch_flow_size, batch_overhead
     
-    ### MODIFIED ###
+    ### NEW ###
     # This is the new reinforcement learn function using the composite loss.
     def reinforcement_learn(self, steps, f):
         self.mind.cuda()
@@ -193,31 +186,26 @@ class agent(robot):
         
         for tensor in self.training_data:
             self.optimizer.zero_grad()
-
-            clip_tensor, packet_size_tensor, target_tensor = tensor
-            clip_tensor = torch.from_numpy(clip_tensor).cuda()
-            packet_size_tensor = torch.from_numpy(packet_size_tensor).cuda()
-            target_tensor = torch.from_numpy(target_tensor).cuda()
-
+            clip_tensor, target_tensor, train_direction = tensor
+            clip_tensor, target_tensor, train_direction = clip_tensor.cuda(), target_tensor.cuda(), train_direction.cuda()
             clip_batch = clip_tensor
-            packet_size_batch = packet_size_tensor
             target_batch = target_tensor.view(target_tensor.shape[0], 1)
             
             for _ in range(steps):
                 combo, log_p_combo = self.select_combo(mode='train')
                 
-                new_clip_batch, flow_size, overhead = self.apply_patch(combo, clip_batch, packet_size_batch)
+                new_clip_batch, flow_size, overhead = self.apply_patch(combo, clip_batch, train_direction)
                 
                 # --- NEW COMPOSITE LOSS CALCULATION ---
                 # 1. Accuracy Loss
-                output_tensor = self.model(new_clip_batch.float())[0]
+                output_tensor = self.model(new_clip_batch)
                 output_softmax = F.softmax(output_tensor, dim=1)
                 p_correct = torch.gather(output_softmax, dim=1, index=target_batch)
                 loss_accuracy = p_correct.mean()
 
                 # 2. Bandwidth Loss
                 loss_bandwidth = (flow_size + overhead) / (flow_size + eps)
-                loss_bandwidth = torch.tensor(loss_bandwidth, device=clip_batch.device).float()
+                loss_bandwidth = torch.tensor(loss_bandwidth, device='cuda').float()
 
                 # 3. Transferability/Similarity Loss
                 l2_dist = torch.norm(new_clip_batch.float() - clip_batch.float(), p=2, dim=-1)
@@ -229,49 +217,55 @@ class agent(robot):
 
                 policy_loss = (log_p_combo.sum(dim=1) * total_loss_value.detach()).mean()
                 
-                policy_loss.backward()
+                policy_loss.backward(retain_graph=True)
                 self.optimizer.step()
                 self.optimizer.zero_grad()
                 self.mind.reset()
-
+    
     ### MODIFIED ###
-    # Log printing is reverted to not include bandwidth ratio
+    # test_acc is reverted to its simpler form without bandwidth calculation
     def test_acc(self, model, test_data):
         self.mind.cuda()
         self.mind.eval()
-        global_acc = [0 for _ in range(100)]
-        class_num = [0 for _ in range(100)]
         
-        for _, (b_x, b_x_size, b_y) in enumerate(test_data):
-            b_x_torch = torch.from_numpy(b_x).cuda()
-            b_x_size_torch = torch.from_numpy(b_x_size).cuda()
-            b_y_torch = torch.from_numpy(b_y).cuda()
+        num_classes = 6
+        global_acc = [0 for _ in range(num_classes)]
+        class_num = [0 for _ in range(num_classes)]
+        
+        for batch in test_data:
+            clip_batch, target_batch, test_direction = batch
+            clip_batch, target_batch, test_direction = clip_batch.cuda(), target_batch.cuda(), test_direction.cuda()
+            
             combo, _ = self.select_combo(mode='test')
             self.mind.reset()
+
+            # The apply_patch returns 3 values; we only need the first for testing accuracy
+            new_clip_batch, _, _ = self.apply_patch(combo, clip_batch, test_direction)
             
-            b_x_adv, _, _ = self.apply_patch(combo, b_x_torch, b_x_size_torch)
+            pred = model(new_clip_batch)
+            pred = F.softmax(pred, dim=-1).max(1)[1]
             
-            logit = model(b_x_adv.float())[0]
-            pred = torch.max(logit, 1)[1].view(b_y_torch.size()).cpu().numpy()
-            gt = b_y_torch.cpu().numpy()
-            for idx in range(pred.shape[0]):
+            y_pred = pred.cpu().numpy()
+            gt = target_batch.cpu().numpy()
+            
+            for idx in range(y_pred.shape[0]):
                 class_num[gt[idx]] += 1
-                if pred[idx] == gt[idx]:
-                    global_acc[pred[idx]] += 1
+                if y_pred[idx] == gt[idx]:
+                    global_acc[y_pred[idx]] += 1
         
         acc = sum(global_acc) / (sum(class_num) + eps)
         
-        temp = [0 for _ in range(100)]
+        temp = [0 for _ in range(num_classes)]
         num_valid_classes = 0
-        for idx in range(100):
+        for idx in range(num_classes):
             if class_num[idx] > 0:
                 temp[idx] = global_acc[idx] / class_num[idx]
                 num_valid_classes += 1
         
         avg_acc = sum(temp) / (num_valid_classes + eps)
-
+            
         return acc, avg_acc
-        
+
     @staticmethod
     def attack(model, training_data, test_data, lr, rl_batch, steps, epochs, f, patch_len, model_save_dir,
                loss_weights=None, split_ratio=0.7):
@@ -283,11 +277,10 @@ class agent(robot):
         
         actor = agent(model, training_data, test_data, patch_len, loss_weights, split_ratio)
         actor.build_robot(rl_batch=rl_batch, lr=lr)
-        
         for now_epoch in trange(epochs, mininterval=1, desc='  - (Training)   ', leave=False):
             f.write('now_epoch = %d    %s\n' % (now_epoch + 1, time.asctime(time.localtime(time.time()))))
             actor.reinforcement_learn(steps=steps, f=f)
-
+            
             ### MODIFIED ###
             # Reverted to calling the simpler test_acc
             acc, avg_acc = actor.test_acc(model=model, test_data=test_data)
