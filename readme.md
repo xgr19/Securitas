@@ -1,8 +1,12 @@
-**Securitas: Defending against Traffic Analysis Attacks with Flexible In-Network Obfuscation NSDI'26**
+# Defending against Traffic Analysis Attacks with Flexible In-Network Obfuscation (NSDI'26)
 
-![Workflow](./figs/workflow.png)
+<!-- ![Workflow](./figs/workflow.png) -->
 
-Welcome to Securitas! Securitas protects encrypted traffic from traffic-analysis side channels through learning-guided packet fragmentation and fake-packet insertion. This release focuses on the Web/WF artifact path: DF attack-model training, Securitas policy training, generated P4 rule entries, and a Tofino-style P4 test program.
+<div align="center">
+<img src="./figs/workflow.png" width="50%" alt="Workflow">
+</div>
+
+<!-- Welcome to Securitas! Securitas protects encrypted traffic from traffic-analysis side channels through learning-guided packet fragmentation and fake-packet insertion. This release focuses on the Web/WF artifact path: DF attack-model training, Securitas policy training, generated P4 rule entries, and a Tofino-style P4 test program. -->
 
 ## Code Architecture
 
@@ -149,13 +153,13 @@ default paper setting is `Pr = 0.7`, so small-TTL insertion has probability
 
 ## Citation
 
-If you use Securitas in your research, please cite the NSDI '26 paper:
+If you find Securitas useful in your research, please cite our paper:
 
 ```bibtex
 @inproceedings{xie2026defending,
   title={Defending against Traffic Analysis Attacks with Flexible In-Network Obfuscation},
   author={Xie, Guorui and Li, Qing and Shi, Zhenning and Antichi, Gianni and Zhu, Yijia and Li, Kejun and Weng, Changxing and Miano, Sebastiano and Jiang, Yong and Xu, Mingwei},
-  booktitle={23rd USENIX Symposium on Networked Systems Design and Implementation (NSDI 26)},
+  booktitle={Proceedings of the 23rd USENIX Symposium on Networked Systems Design and Implementation (NSDI 26)},
   pages={2043--2063},
   year={2026}
 }
