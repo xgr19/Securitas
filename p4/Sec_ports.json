@@ -1,0 +1,22 @@
+{
+    "PortToVeth": [
+        {
+            "_comment": "high speed",
+            "device_port":0,
+            "veth1":0,
+            "veth2":1
+        },
+        {
+            "_comment": "real traffic",
+            "device_port":4,
+            "veth1":2,
+            "veth2":3
+        },
+        {
+            "_comment": "obfuscated",
+            "device_port":40,
+            "veth1":22,
+            "veth2":23
+        }
+    ]
+}
